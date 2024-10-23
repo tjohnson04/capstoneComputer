@@ -2,87 +2,64 @@ import tkinter as tk
 from tkinter import filedialog, messagebox
 import os
 import shutil
-import psutil
 
-class FileCatalogApp:
-    def __init__(self, root):
-        self.root = root
-        self.root.title("File Catalog and Transfer")
-        self.root.geometry("500x400")
+# Function to browse files or directories
+def browse_files():
+    folder = filedialog.askopenfilenames(filetypes = (("jpeg files","*.jpg"),("all files","*.*")))
+    if folder:
+        list_files(folder)
 
-        self.current_folder = ""
-        self.sd_card_path = ""
+# Function to list files in the selected directory
+def list_files(folder):
+    files_listbox.delete(0, tk.END)  # Clear the listbox
+    for file in os.listdir(folder):
+        files_listbox.insert(tk.END, file)  # Add files to the listbox
 
-        self.create_widgets()
+# Function to browse for SD card destination
+def browse_sd_card():
+    global sd_card_path
+    sd_card_path = filedialog.askdirectory()
+    if sd_card_path:
+        sd_card_label.config(text=f"SD Card: {sd_card_path}")
 
-    def create_widgets(self):
-        browse_button = tk.Button(self.root, text="Browse Files/Folders", command=self.browse_files)
-        browse_button.pack(pady=10)
+# Function to transfer selected files to the SD card
+def transfer_files():
+    if not sd_card_path:
+        messagebox.showerror("Error", "No SD card selected.")
+        return
 
-        self.files_listbox = tk.Listbox(self.root, selectmode=tk.MULTIPLE)
-        self.files_listbox.pack(pady=10, fill=tk.BOTH, expand=True)
+    selected_files = files_listbox.curselection()
+    if not selected_files:
+        messagebox.showerror("Error", "No files selected.")
+        return
 
-        sd_card_button = tk.Button(self.root, text="Select SD Card", command=self.browse_sd_card)
-        sd_card_button.pack(pady=10)
+    for i in selected_files:
+        file_name = files_listbox.get(i)
+        file_path = os.path.join(current_folder, file_name)
+        shutil.copy(file_path, sd_card_path)
+    
+    messagebox.showinfo("Success", "Files transferred successfully!")
 
-        self.sd_card_label = tk.Label(self.root, text="SD Card: Not selected")
-        self.sd_card_label.pack(pady=10)
+# Create the main window
+root = tk.Tk()
+root.title("Clash of Plans Cave Catalog")
+root.geometry("500x400")
+current_folder = initialdir = os.path.abspath(os.getcwd())
 
-        transfer_button = tk.Button(self.root, text="Transfer Files", command=self.transfer_files)
-        transfer_button.pack(pady=10)
+# Create and place the UI elements
+browse_button = tk.Button(root, text="Upload New Cave", command=browse_files)
+browse_button.pack(pady=10)
 
-    def browse_files(self):
-        folder = filedialog.askdirectory()
-        if folder:
-            self.current_folder = folder
-            self.list_files(folder)
+files_listbox = tk.Listbox(root, selectmode=tk.MULTIPLE)
+files_listbox.pack(pady=10, fill=tk.BOTH, expand=True)
 
-    def list_files(self, folder):
-        self.files_listbox.delete(0, tk.END)
-        for file in os.listdir(folder):
-            self.files_listbox.insert(tk.END, file)
+sd_card_button = tk.Button(root, text="Select SD Card", command=browse_sd_card)
+sd_card_button.pack(pady=10)
 
-    def browse_sd_card(self):
-        self.sd_card_path = filedialog.askdirectory()
-        if self.sd_card_path:
-            self.sd_card_label.config(text=f"SD Card: {self.sd_card_path}")
+sd_card_label = tk.Label(root, text="SD Card: Not selected")
+sd_card_label.pack(pady=10)
 
-    def transfer_files(self):
-        if not self.sd_card_path:
-            messagebox.showerror("Error", "No SD card selected.")
-            return
+transfer_button = tk.Button(root, text="Transfer Files", command=transfer_files)
+transfer_button.pack(pady=10)
 
-        selected_indices = self.files_listbox.curselection()
-        if not selected_indices:
-            messagebox.showerror("Error", "No files selected.")
-            return
-
-        for i in selected_indices:
-            file_name = self.files_listbox.get(i)
-            source_path = os.path.join(self.current_folder, file_name)
-            destination_path = os.path.join(self.sd_card_path, file_name)
-
-            if os.path.exists(destination_path):
-                overwrite = messagebox.askyesno("Overwrite", f"{file_name} already exists. Overwrite?")
-                if not overwrite:
-                    continue
-
-            try:
-                shutil.copy2(source_path, destination_path)
-            except Exception as e:
-                messagebox.showerror("Error", f"Failed to copy {file_name}: {str(e)}")
-                return
-
-        messagebox.showinfo("Success", "Files transferred successfully!")
-
-    @staticmethod
-    def detect_sd_card():
-        for partition in psutil.disk_partitions():
-            if 'removable' in partition.opts.lower():  # This might not work on all systems
-                return partition.mountpoint
-        return None
-
-if __name__ == "__main__":
-    root = tk.Tk()
-    app = FileCatalogApp(root)
-    root.mainloop()
+root.mainloop()
