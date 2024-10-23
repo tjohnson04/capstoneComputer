@@ -3,17 +3,25 @@ from tkinter import filedialog, messagebox
 import os
 import shutil
 
-# Function to browse files or directories
-def browse_files():
-    folder = filedialog.askopenfilenames(filetypes = (("jpeg files","*.jpg"),("all files","*.*")))
-    if folder:
-        list_files(folder)
+# List files in app data
+def list_files():
+    files = filedialog.askopenfilenames(filetypes = (("all files","*.*")))
+    if files:
+        files_listbox.delete(0, tk.END)  # Clear the listbox
+        for file in os.listdir(os.path.abspath):
+            files_listbox.insert(tk.END, file)  # Add files to the listbox
 
-# Function to list files in the selected directory
-def list_files(folder):
-    files_listbox.delete(0, tk.END)  # Clear the listbox
-    for file in os.listdir(folder):
-        files_listbox.insert(tk.END, file)  # Add files to the listbox
+# Brow
+def browse_renderings():
+    files = filedialog.askopenfilenames(filetypes = (("object files","*.obj"),("all files","*.*")))
+    for file in files:
+        # run joseph processing code
+        # add file to app data
+        continue
+        
+    files_listbox.delete(0, tk.END)
+    for name in data_files:
+        files_listbox.insert('end', name)
 
 # Function to browse for SD card destination
 def browse_sd_card():
@@ -35,7 +43,7 @@ def transfer_files():
 
     for i in selected_files:
         file_name = files_listbox.get(i)
-        file_path = os.path.join(current_folder, file_name)
+        file_path = os.path.join(data_folder, file_name)
         shutil.copy(file_path, sd_card_path)
     
     messagebox.showinfo("Success", "Files transferred successfully!")
@@ -45,12 +53,16 @@ root = tk.Tk()
 root.title("Clash of Plans Cave Catalog")
 root.geometry("500x400")
 current_folder = initialdir = os.path.abspath(os.getcwd())
+data_folder = os.path.abspath(os.getcwd()) + "/cave_data"
 
 # Create and place the UI elements
-browse_button = tk.Button(root, text="Upload New Cave", command=browse_files)
+browse_button = tk.Button(root, text="Upload New Cave", command=browse_renderings)
 browse_button.pack(pady=10)
 
 files_listbox = tk.Listbox(root, selectmode=tk.MULTIPLE)
+data_files = os.listdir(data_folder)
+for name in data_files:
+    files_listbox.insert('end', name)
 files_listbox.pack(pady=10, fill=tk.BOTH, expand=True)
 
 sd_card_button = tk.Button(root, text="Select SD Card", command=browse_sd_card)
