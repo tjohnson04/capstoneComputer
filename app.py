@@ -11,7 +11,7 @@ def list_files():
         for file in os.listdir(os.path.abspath):
             files_listbox.insert(tk.END, file)  # Add files to the listbox
 
-# Brow
+# Browse renderings and process them
 def browse_renderings():
     files = filedialog.askopenfilenames(filetypes = (("object files","*.obj"),("all files","*.*")))
     for file in files:
