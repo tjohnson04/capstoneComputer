@@ -28,7 +28,7 @@ def browse_sd_card():
     global sd_card_path
     sd_card_path = filedialog.askdirectory()
     if sd_card_path:
-        sd_card_label.config(text=f"SD Card: {sd_card_path}")
+        sd_card_label.config(text=f"SD Card: {sd_card_path.split('/')[-1]}")
 
 # Function to transfer selected files to the SD card
 def transfer_files():
@@ -52,6 +52,9 @@ def transfer_files():
 root = tk.Tk()
 root.title("Clash of Plans Cave Catalog")
 root.geometry("500x400")
+
+
+
 current_folder = initialdir = os.path.abspath(os.getcwd())
 data_folder = os.path.abspath(os.getcwd()) + "/cave_data"
 
@@ -62,7 +65,9 @@ browse_button.pack(pady=10)
 files_listbox = tk.Listbox(root, selectmode=tk.MULTIPLE)
 data_files = os.listdir(data_folder)
 for name in data_files:
-    files_listbox.insert('end', name)
+    with open("cave_data/" + name) as current_file:
+        cave_title = current_file.readline()
+    files_listbox.insert('end', cave_title)
 files_listbox.pack(pady=10, fill=tk.BOTH, expand=True)
 
 sd_card_button = tk.Button(root, text="Select SD Card", command=browse_sd_card)
