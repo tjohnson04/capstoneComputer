@@ -1,15 +1,17 @@
-import tkinter as tk
+from tkinter import *
 from tkinter import filedialog, messagebox
+from PIL import Image, ImageTk
 import os
 import shutil
 
+### WIDGET FUNCTIONS ###
 # List files in app data
 def list_files():
     files = filedialog.askopenfilenames(filetypes = (("all files","*.*")))
     if files:
-        files_listbox.delete(0, tk.END)  # Clear the listbox
+        files_listbox.delete(0, END)  # Clear the listbox
         for file in os.listdir(os.path.abspath):
-            files_listbox.insert(tk.END, file)  # Add files to the listbox
+            files_listbox.insert(END, file)  # Add files to the listbox
 
 # Browse renderings and process them
 def browse_renderings():
@@ -19,7 +21,7 @@ def browse_renderings():
         # add file to app data
         continue
         
-    files_listbox.delete(0, tk.END)
+    files_listbox.delete(0, END)
     for name in data_files:
         files_listbox.insert('end', name)
 
@@ -48,35 +50,75 @@ def transfer_files():
     
     messagebox.showinfo("Success", "Files transferred successfully!")
 
+
+### LAYOUT ###
 # Create the main window
-root = tk.Tk()
-root.title("Clash of Plans Cave Catalog")
-root.geometry("500x400")
-
-
-
+root = Tk()
+# root.title("Clash of Plans Cave Catalog")
+root.title(" ")
+root.geometry("750x600")
 current_folder = initialdir = os.path.abspath(os.getcwd())
 data_folder = os.path.abspath(os.getcwd()) + "/cave_data"
 
-# Create and place the UI elements
-browse_button = tk.Button(root, text="Upload New Cave", command=browse_renderings)
-browse_button.pack(pady=10)
+# Create all of the main containers
+top_frame = Frame(root, pady=3)
+center_frame = Frame(root, padx=3, pady=3)
+bottom_frame = Frame(root, pady=3)
 
-files_listbox = tk.Listbox(root, selectmode=tk.MULTIPLE)
+top_frame.pack(fill=X)
+center_frame.pack(fill=BOTH, expand=True)
+bottom_frame.pack(fill=X)
+
+# Create top sub frames
+top_left_frame = Frame(top_frame)
+top_right_frame = Frame(top_frame)
+
+top_left_frame.pack(side=LEFT, fill=X, expand=True)
+top_right_frame.pack(side=RIGHT, fill=X)
+
+# Create and place the UI elements for the top frame
+list_label = Label(top_left_frame, text="Clash of Plans Cave Catalog", font=("Arial", 16, "bold"))
+list_label.pack(anchor=CENTER)
+
+browse_button = Button(top_right_frame, text="Upload Cave", command=browse_renderings)
+browse_button.pack(side=RIGHT)
+
+# Create and place the UI elements for the center frame
+files_listbox = Listbox(center_frame, selectmode=MULTIPLE)
 data_files = os.listdir(data_folder)
 for name in data_files:
     with open("cave_data/" + name) as current_file:
         cave_title = current_file.readline()
     files_listbox.insert('end', cave_title)
-files_listbox.pack(pady=10, fill=tk.BOTH, expand=True)
+files_listbox.pack(pady=3, fill=BOTH, expand=True)
 
-sd_card_button = tk.Button(root, text="Select SD Card", command=browse_sd_card)
-sd_card_button.pack(pady=10)
+file_source = Image.open("/Users/thomasjohnson/Documents/UVA/Capstone/capstoneComputer/fileicon.jpg")
+photo = ImageTk.PhotoImage(file_source)
+test_button = Button(center_frame, image=photo, borderwidth=0, relief="flat").pack()
 
-sd_card_label = tk.Label(root, text="SD Card: Not selected")
-sd_card_label.pack(pady=10)
+# Create bottom sub frames
+bottom_left_frame = Frame(bottom_frame, padx=3)
+bottom_middle_frame = Frame(bottom_frame, padx=3)
+bottom_right_frame = Frame(bottom_frame, padx=3)
 
-transfer_button = tk.Button(root, text="Transfer Files", command=transfer_files)
-transfer_button.pack(pady=10)
+bottom_left_frame.pack(side=LEFT, fill=X, expand=True)
+bottom_middle_frame.pack(side=LEFT, fill=X, expand=True)
+bottom_right_frame.pack(side=RIGHT, fill=X, expand=True)
+
+# Create and place the UI elements for the bottom frame
+sd_card_label = Label(bottom_left_frame, text="SD Card: Not selected")
+sd_card_label.pack()
+
+sd_card_button = Button(bottom_left_frame, text="Change SD Card", command=browse_sd_card)
+sd_card_button.pack()
+
+current_cave_label = Label(bottom_middle_frame, text="Saved Cave: None")
+current_cave_label.pack(side=LEFT)
+
+new_cave_label = Label(bottom_right_frame, text="Selected Cave: None")
+new_cave_label.pack(side=LEFT)
+
+transfer_button = Button(bottom_right_frame, text="Transfer to SD", command=transfer_files)
+transfer_button.pack()
 
 root.mainloop()
