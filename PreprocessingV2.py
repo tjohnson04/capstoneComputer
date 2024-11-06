@@ -2,19 +2,8 @@ import trimesh
 import numpy as np
 import matplotlib.pyplot as plt
 
-# Load the .obj file
-mesh = trimesh.load('test.obj')
-
-# Get the bounding box min and max values
-min_val, max_val = mesh.bounds[0], mesh.bounds[1]
-print(f"Bounding Box Min: {min_val}, Max: {max_val}")
-
-# Find the maximum range across all dimensions (X, Y, Z)
-max_range = max(max_val - min_val)  # This gives the largest span (X, Y, or Z)
-center = (min_val + max_val) / 2.0
-
 # Function to generate the base grid with rotation around the YZ-plane (x=0, y=0)
-def generate_base_grid(cube_size, num_rotations=54, margin=0.1):
+def generate_base_grid(cube_size, num_rotations=54, center=[0,0,0], max_range=0, margin=0.1):
     "Generates a base 3D grid of points by rotating a 2D grid around  X=0, Y=0 line"
     # Define the Y and Z ranges based on the cube size
     grid_size = 16
@@ -102,6 +91,8 @@ def save_scan_output_to_file(all_points, inside_points, filename="output.txt"):
 
     print(len(distance_list),len(angle_list),len(height_list))
     print(distance_list)
+    print(angle_list)
+    print(height_list)
 
 
     inside_coords = []
@@ -112,14 +103,17 @@ def save_scan_output_to_file(all_points, inside_points, filename="output.txt"):
         inside_coords.append(((float(r)), theta, z))
     inside_coords = list(sorted(set(inside_coords)))
 
+    print(f'len of inside: {len(inside_coords)}')
     height_coord_list = []
+    templen = 0
     for h in height_list:
         for r in distance_list:
-            first_half = 0  # Use Python's built-in int
-            second_half = 0  # Use Python's built-in int
+            first_half = 0
+            second_half = 0
             for c in inside_coords:
-                if (c[2] == h) and (c[0] == r):
+                if (c[2]-h < c[2]*0.000001) and (c[0]-r < c[0]*0.000001):
                     angle_index = angle_list.index(c[1])
+                    templen +=1
                     if angle_index > 31:
                         second_half |= 1 << (angle_index - 32)  # Shifting for second half
                     else:
@@ -127,86 +121,150 @@ def save_scan_output_to_file(all_points, inside_points, filename="output.txt"):
             with open('output.txt', 'a') as file:
                 # Write the binary strings to the output file
                 file.write(f"{bin(first_half)[2:].zfill(32)}{bin(second_half)[2:].zfill(32)}\n")
+    print(templen)
+    with open('output.txt', 'a') as file:
+        file.write(f"----\n")
 
 
 def remove_near_duplicates(numbers, tolerance=0.01):
-    # Sort the list to easily identify close numbers
-    sorted_numbers = sorted(numbers)
+    if len(numbers) > 0:
+        # Sort the list to easily identify close numbers
+        sorted_numbers = sorted(numbers)
 
-    # Initialize the list with the first element (assuming it is unique)
-    unique_numbers = [sorted_numbers[0]]
+        # Initialize the list with the first element (assuming it is unique)
+        unique_numbers = [sorted_numbers[0]]
 
-    # Compare each number with the last unique number in the list
-    for num in sorted_numbers[1:]:
-        # Calculate the range of the last unique number
-        lower_bound = unique_numbers[-1] * (1 - tolerance)
-        upper_bound = unique_numbers[-1] * (1 + tolerance)
+        # Compare each number with the last unique number in the list
+        for num in sorted_numbers[1:]:
+            # Calculate the range of the last unique number
+            lower_bound = unique_numbers[-1] * (1 - tolerance)
+            upper_bound = unique_numbers[-1] * (1 + tolerance)
 
-        # Only add the number if it is outside the tolerance range of the last unique number
-        if num < lower_bound or num > upper_bound:
-            unique_numbers.append(num)
-    return unique_numbers
+            # Only add the number if it is outside the tolerance range of the last unique number
+            if num < lower_bound or num > upper_bound:
+                unique_numbers.append(num)
+        return unique_numbers
+    else:
+        return numbers
+
+def scan_obj(obj_file):
+    # Load the .obj file
+
+    mesh = trimesh.load(obj_file)
+
+    # Get the bounding box min and max values
+    min_val, max_val = mesh.bounds[0], mesh.bounds[1]
+    print(f"Bounding Box Min: {min_val}, Max: {max_val}")
+
+    # Find the maximum range across all dimensions (X, Y, Z)
+    max_range = max(max_val - min_val)  # This gives the largest span (X, Y, or Z)
+    center = (min_val + max_val) / 2.0
+    quadrants = get_quadrants(center=center,max_range=max_range)
+
+    with open('output.txt', 'w') as file:
+        file.write('')  # This clears the file content
+
+    # Generate the base grid (use cube_size=16 and num_rotations=54 for example)
+    base_grid = generate_base_grid(cube_size=16, num_rotations=54, center=center,max_range=max_range)
+
+    # Example: Perform a full scan with the unscaled grid (scale=1.0)
+    location = (center[0], center[1], center[2])  # Use the center of the object
+    scaled_grid = scale_grid(base_grid, scale=1.0)
+
+    # Perform the scan
+    inside_points, outside_points = perform_scan(mesh, scaled_grid, location)
+
+    # Plot the full scan
+    fig = plt.figure()
+    ax = fig.add_subplot(111, projection='3d')
+
+    # Plot inside points in green
+    ax.scatter(inside_points[:, 0], inside_points[:, 1], inside_points[:, 2], color='g', label='Inside', alpha=0.2)
+
+    # Plot outside points in red
+    ax.scatter(outside_points[:, 0], outside_points[:, 1], outside_points[:, 2], color='r', label='Outside', alpha=0.005)
+
+    # Set labels and title
+    ax.set_xlabel('X')
+    ax.set_ylabel('Y')
+    ax.set_zlabel('Z')
+    ax.set_title('3D Visualization of Full Scan')
+
+    # Show legend and plot
+    ax.legend()
+    plt.show()
 
 
-with open('output.txt', 'w') as file:
-    file.write('')  # This clears the file content
+    quadrant_points = []
+    for quadrant_label, location in quadrants.items():
+        scaled_grid = scale_grid(base_grid, scale=0.5)  # Scale down the grid for quadrants
+        inside_q, outside_q = perform_scan(mesh, scaled_grid, location)
+        quadrant_points.append((inside_q, outside_q))
 
-# Generate the base grid (use cube_size=16 and num_rotations=54 for example)
-base_grid = generate_base_grid(cube_size=16, num_rotations=54)
+def get_quadrants(center,max_range):
+    quadrants = {
+        # Near sections
+        "Top-Left-Near": (center[0] + max_range / 4, center[1] - max_range / 4, center[2] + max_range / 4),
+        "Top-Center-Near": (center[0] + max_range / 4, center[1] - max_range / 4, center[2]),
+        "Top-Right-Near": (center[0] + max_range / 4, center[1] - max_range / 4, center[2] - max_range / 4),
 
-# Example: Perform a full scan with the unscaled grid (scale=1.0)
-location = (center[0], center[1], center[2])  # Use the center of the object
-scaled_grid = scale_grid(base_grid, scale=1.0)
+        "Middle-Left-Near": (center[0] + max_range / 4, center[1], center[2] + max_range / 4),
+        "Middle-Center-Near": (center[0] + max_range / 4, center[1], center[2]),
+        "Middle-Right-Near": (center[0] + max_range / 4, center[1], center[2] - max_range / 4),
 
-# Perform the scan
-inside_points, outside_points = perform_scan(mesh, scaled_grid, location)
+        "Bottom-Left-Near": (center[0] + max_range / 4, center[1] + max_range / 4, center[2] + max_range / 4),
+        "Bottom-Center-Near": (center[0] + max_range / 4, center[1] + max_range / 4, center[2]),
+        "Bottom-Right-Near": (center[0] + max_range / 4, center[1] + max_range / 4, center[2] - max_range / 4),
 
+        # Middle sections
+        "Top-Left-Middle": (center[0], center[1] - max_range / 4, center[2] + max_range / 4),
+        "Top-Center-Middle": (center[0], center[1] - max_range / 4, center[2]),
+        "Top-Right-Middle": (center[0], center[1] - max_range / 4, center[2] - max_range / 4),
 
+        "Middle-Left-Middle": (center[0], center[1], center[2] + max_range / 4),
+        "Middle-Center-Middle": (center[0], center[1], center[2]),
+        "Middle-Right-Middle": (center[0], center[1], center[2] - max_range / 4),
 
+        "Bottom-Left-Middle": (center[0], center[1] + max_range / 4, center[2] + max_range / 4),
+        "Bottom-Center-Middle": (center[0], center[1] + max_range / 4, center[2]),
+        "Bottom-Right-Middle": (center[0], center[1] + max_range / 4, center[2] - max_range / 4),
 
-quadrants = {
-    # Near sections
-    "Top-Left-Near": (center[0] + max_range / 4, center[1] - max_range / 4, center[2] + max_range / 4),
-    "Top-Center-Near": (center[0] + max_range / 4, center[1] - max_range / 4, center[2]),
-    "Top-Right-Near": (center[0] + max_range / 4, center[1] - max_range / 4, center[2] - max_range / 4),
+        # Far sections
+        "Top-Left-Far": (center[0] - max_range / 4, center[1] - max_range / 4, center[2] + max_range / 4),
+        "Top-Center-Far": (center[0] - max_range / 4, center[1] - max_range / 4, center[2]),
+        "Top-Right-Far": (center[0] - max_range / 4, center[1] - max_range / 4, center[2] - max_range / 4),
 
-    "Middle-Left-Near": (center[0] + max_range / 4, center[1], center[2] + max_range / 4),
-    "Middle-Center-Near": (center[0] + max_range / 4, center[1], center[2]),
-    "Middle-Right-Near": (center[0] + max_range / 4, center[1], center[2] - max_range / 4),
+        "Middle-Left-Far": (center[0] - max_range / 4, center[1], center[2] + max_range / 4),
+        "Middle-Center-Far": (center[0] - max_range / 4, center[1], center[2]),
+        "Middle-Right-Far": (center[0] - max_range / 4, center[1], center[2] - max_range / 4),
 
-    "Bottom-Left-Near": (center[0] + max_range / 4, center[1] + max_range / 4, center[2] + max_range / 4),
-    "Bottom-Center-Near": (center[0] + max_range / 4, center[1] + max_range / 4, center[2]),
-    "Bottom-Right-Near": (center[0] + max_range / 4, center[1] + max_range / 4, center[2] - max_range / 4),
+        "Bottom-Left-Far": (center[0] - max_range / 4, center[1] + max_range / 4, center[2] + max_range / 4),
+        "Bottom-Center-Far": (center[0] - max_range / 4, center[1] + max_range / 4, center[2]),
+        "Bottom-Right-Far": (center[0] - max_range / 4, center[1] + max_range / 4, center[2] - max_range / 4),
+    }
 
-    # Middle sections
-    "Top-Left-Middle": (center[0], center[1] - max_range / 4, center[2] + max_range / 4),
-    "Top-Center-Middle": (center[0], center[1] - max_range / 4, center[2]),
-    "Top-Right-Middle": (center[0], center[1] - max_range / 4, center[2] - max_range / 4),
+    return quadrants
 
-    "Middle-Left-Middle": (center[0], center[1], center[2] + max_range / 4),
-    "Middle-Center-Middle": (center[0], center[1], center[2]),
-    "Middle-Right-Middle": (center[0], center[1], center[2] - max_range / 4),
+'''
+# Plot each quadrant scan separately
+for quadrant_label, (inside_q, outside_q) in zip(quadrants.keys(), quadrant_points):
+    fig = plt.figure()
+    ax = fig.add_subplot(111, projection='3d')
 
-    "Bottom-Left-Middle": (center[0], center[1] + max_range / 4, center[2] + max_range / 4),
-    "Bottom-Center-Middle": (center[0], center[1] + max_range / 4, center[2]),
-    "Bottom-Right-Middle": (center[0], center[1] + max_range / 4, center[2] - max_range / 4),
+    # Plot inside points in green
+    ax.scatter(inside_q[:, 0], inside_q[:, 1], inside_q[:, 2], color='g', label='Inside', alpha=0.2)
 
-    # Far sections
-    "Top-Left-Far": (center[0] - max_range / 4, center[1] - max_range / 4, center[2] + max_range / 4),
-    "Top-Center-Far": (center[0] - max_range / 4, center[1] - max_range / 4, center[2]),
-    "Top-Right-Far": (center[0] - max_range / 4, center[1] - max_range / 4, center[2] - max_range / 4),
+    # Plot outside points in red
+    ax.scatter(outside_q[:, 0], outside_q[:, 1], outside_q[:, 2], color='r', label='Outside', alpha=0.005)
 
-    "Middle-Left-Far": (center[0] - max_range / 4, center[1], center[2] + max_range / 4),
-    "Middle-Center-Far": (center[0] - max_range / 4, center[1], center[2]),
-    "Middle-Right-Far": (center[0] - max_range / 4, center[1], center[2] - max_range / 4),
+    # Set labels and title
+    ax.set_xlabel('X')
+    ax.set_ylabel('Y')
+    ax.set_zlabel('Z')
+    ax.set_title(f'3D Visualization of {quadrant_label} Scan')
 
-    "Bottom-Left-Far": (center[0] - max_range / 4, center[1] + max_range / 4, center[2] + max_range / 4),
-    "Bottom-Center-Far": (center[0] - max_range / 4, center[1] + max_range / 4, center[2]),
-    "Bottom-Right-Far": (center[0] - max_range / 4, center[1] + max_range / 4, center[2] - max_range / 4),
-}
+    # Show legend and plot
+    ax.legend()
+    plt.show()
 
-quadrant_points = []
-for quadrant_label, location in quadrants.items():
-    scaled_grid = scale_grid(base_grid, scale=0.5)  # Scale down the grid for quadrants
-    inside_q, outside_q = perform_scan(mesh, scaled_grid, location)
-    quadrant_points.append((inside_q, outside_q))
+'''
