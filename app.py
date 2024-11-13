@@ -17,29 +17,17 @@ def list_files():
 
 # Browse renderings and process them
 def browse_renderings():
-    files = filedialog.askopenfilenames(filetypes = (("object files","*.obj"),("all files","*.*")))
+    files = filedialog.askopenfilenames(filetypes=(("object files", "*.obj"), ("all files", "*.*")))
+    output_folders = []
     for file in files:
-        # run joseph processing code
-        mesh = trimesh.load(file)
+        output_folder = scan_obj(file)
+        output_folders.append(output_folder)
 
-        # Get the bounding box min and max values
-        min_val, max_val = mesh.bounds[0], mesh.bounds[1]
-        max_range = max(max_val - min_val)
-        center = (min_val + max_val) / 2.0
-        
-        # Generate the base grid, scale it, and perform the scan
-        base_grid = generate_base_grid(cube_size=16, num_rotations=54)
-        scaled_grid = scale_grid(base_grid, scale=1.0)
-        inside_points, outside_points = perform_scan(mesh, scaled_grid, center)
-
-        # Save scan output to a file (you can modify this path if needed)
-        save_scan_output_to_file(inside_points, inside_points, filename=f"{file}_scan_output.txt")
-        # add file to app data
-        continue
-        
     files_listbox.delete(0, END)
-    for name in data_files:
-        files_listbox.insert('end', name)
+    for folder in output_folders:
+        files_listbox.insert('end', folder)
+        for file_name in os.listdir(folder):
+            files_listbox.insert('end', os.path.join(folder, file_name))  # Insert files in folder
 
 # Function to browse for SD card destination
 def browse_sd_card():
