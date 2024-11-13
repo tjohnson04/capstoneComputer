@@ -3,7 +3,8 @@ from tkinter import filedialog, messagebox
 from PIL import Image, ImageTk
 import os
 import shutil
-from PreprocessingV2 import generate_base_grid, scale_grid, perform_scan, save_scan_output_to_file
+
+from PreprocessingV2 import scan_obj, generate_base_grid, perform_scan, save_scan_output_to_file
 
 
 ### WIDGET FUNCTIONS ###
