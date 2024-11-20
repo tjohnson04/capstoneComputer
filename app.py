@@ -19,40 +19,50 @@ def list_files():
 def browse_renderings():
     # Open file dialog to select files
     files = filedialog.askopenfilenames(filetypes=(("object files", "*.obj"), ("all files", "*.*")))
+    last_uploaded_file = None  # Track the last file
 
     output_folders = []
     for file in files:
+        last_uploaded_file = os.path.basename(file)  # Get the file name
         output_folder = scan_obj(file)  # Assuming scan_obj processes the file and returns the output folder path
         output_folders.append(output_folder)
 
         # Now copy the processed files to the cave_data folder
+        cave_data_folder = os.path.join(os.getcwd(), "cave_data")  # Define the cave_data folder path
+
+        # Ensure the cave_data folder exists
+        if not os.path.exists(cave_data_folder):
+            os.makedirs(cave_data_folder)
+
         for output_folder in output_folders:
             if os.path.exists(output_folder):  # Check if the folder exists
                 for file_name in os.listdir(output_folder):  # List all files in the folder
                     source_file = os.path.join(output_folder, file_name)
-                    dest_folder = os.path.join(os.getcwd(), "cave_data")  # Target folder where data will be copied
-                    dest_file = os.path.join(dest_folder, file_name)
+                    dest_file = os.path.join(cave_data_folder, file_name)
 
-                    # Copy the file to cave_data
-                    shutil.copy(source_file, dest_file)
-                    print(f"File {file_name} copied to {dest_folder}")
+                    try:
+                        # Copy the file to cave_data
+                        shutil.copy(source_file, dest_file)
+                        print(f"File {file_name} copied to {cave_data_folder}")
+                    except Exception as e:
+                        print(f"Error copying file {file_name}: {e}")
             else:
                 print(f"Output folder does not exist: {output_folder}")
 
     # Clear the Listbox and list files from cave_data folder
     files_listbox.delete(0, END)
 
+
     # List all files from the cave_data folder
-    cave_data_folder = os.path.join(os.getcwd(), "cave_data")
     if os.path.exists(cave_data_folder):  # Check if the cave_data folder exists
         for file_name in os.listdir(cave_data_folder):
             file_path = os.path.join(cave_data_folder, file_name)
-
-            # Use os.path.relpath to get the part of the file path after 'cave_data'
             relative_path = os.path.relpath(file_path, cave_data_folder)
             files_listbox.insert('end', relative_path)  # Insert the relative file path into the listbox
     else:
         print("cave_data folder not found.")
+    current_cave_label.config(text=f"Saved Cave: {last_uploaded_file}")
+
 
 # Function to clear cave_data folder at start of execution
 def clear_cave_data_folder():
@@ -63,14 +73,10 @@ def clear_cave_data_folder():
         # Remove all files in the folder
         for file_name in os.listdir(cave_data_folder):
             file_path = os.path.join(cave_data_folder, file_name)
-            try:
-                if os.path.isfile(file_path):  # Check if it's a file
-                    os.remove(file_path)  # Delete the file
-                elif os.path.isdir(file_path):  # If it's a directory, delete it recursively
-                    shutil.rmtree(file_path)
-                print(f"Deleted: {file_name}")
-            except Exception as e:
-                print(f"Error deleting {file_name}: {e}")
+            if os.path.isfile(file_path):  # Check if it's a file
+                os.remove(file_path)  # Delete the file
+            elif os.path.isdir(file_path):  # If it's a directory, delete it recursively
+                shutil.rmtree(file_path)
     else:
         print("cave_data folder does not exist.")
 
@@ -109,6 +115,11 @@ def transfer_files():
 
     # Show success message if all files are copied
     messagebox.showinfo("Success", "Files transferred successfully!")
+
+# Select all files in the Listbox
+def select_all_files():
+    files_listbox.select_set(0, END)  # Select all items from the first to the last index
+    files_listbox.activate(0)  # Set focus on the first item (optional)
 
 
 ### LAYOUT ###
@@ -174,6 +185,9 @@ sd_card_label.pack()
 sd_card_button = Button(bottom_left_frame, text="Change SD Card", command=browse_sd_card)
 sd_card_button.pack()
 
+# Add the "Select All" button to the layout
+select_all_button = Button(center_frame, text="Select All", command=select_all_files)
+select_all_button.pack(pady=3)
 
 current_cave_label = Label(bottom_middle_frame, text="Saved Cave: None")
 current_cave_label.pack(side=LEFT)
