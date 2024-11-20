@@ -3,47 +3,6 @@ import numpy as np
 import matplotlib.pyplot as plt
 import os
 import shutil
-import time
-
-def clear_folder(folder_path):
-    # Check if the folder exists
-    if os.path.exists(folder_path):
-        # Iterate through all files and directories in the folder
-        for filename in os.listdir(folder_path):
-            file_path = os.path.join(folder_path, filename)
-
-            try:
-                # Remove a file or a directory
-                if os.path.isfile(file_path) or os.path.islink(file_path):
-                    os.unlink(file_path)  # Remove file or symbolic link
-                elif os.path.isdir(file_path):
-                    shutil.rmtree(file_path)  # Remove directory and all its contents
-            except Exception as e:
-                print(f'Failed to delete {file_path}. Reason: {e}')
-def plot_3d_points(points):
-    # Convert the list of points into a numpy array for easier handling
-    points_array = np.array(points)
-
-    # Extract x, y, z coordinates
-    x_coords = points_array[:, 0]
-    y_coords = points_array[:, 1]
-    z_coords = points_array[:, 2]
-
-    # Create a 3D scatter plot
-    fig = plt.figure()
-    ax = fig.add_subplot(111, projection='3d')
-
-    # Plot the points
-    ax.scatter(x_coords, y_coords, z_coords, c='blue', marker='o')
-
-    # Set labels
-    ax.set_xlabel('X')
-    ax.set_ylabel('Y')
-    ax.set_zlabel('Z')
-    ax.set_title('3D Scatter Plot of Points')
-
-    # Show the plot
-    plt.show()
 
 def clear_file(filename):
     # Open the file in write mode to clear its contents
@@ -54,7 +13,10 @@ def scan_obj(obj_file):
     mesh = trimesh.load(obj_file)
     # Get the bounding box min and max values
     min_val, max_val = mesh.bounds[0], mesh.bounds[1]
-    print(f"Bounding Box Min: {min_val}, Max: {max_val}")
+    #print(f"Bounding Box Min: {min_val}, Max: {max_val}")
+
+    min_val = min_val
+    max_val = max_val
 
     # Find the maximum range across all dimensions (X, Y, Z)
     max_range = max(max_val - min_val)  # This gives the largest span (X, Y, or Z)
@@ -65,8 +27,9 @@ def scan_obj(obj_file):
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
     clear_folder(output_dir)
-    # Generate the base grid (use cube_size=16 and num_rotations=54 for example)
-    base_grid = generate_base_grid(cube_size=16, num_rotations=54, center=center,max_range=max_range)
+    # Generate the base grid
+    base_grid = generate_base_grid(cube_size=16, center=center,max_range=max_range)
+
 
     location = (center[0], center[1], center[2])  # Use the center of the object
     inside_points, outside_points = perform_scan(mesh, base_grid, location, label="full_obj")
@@ -79,12 +42,13 @@ def scan_obj(obj_file):
     return output_dir
 
 # Function to generate the base grid with rotation around the YZ-plane (x=0, y=0)
-def generate_base_grid(cube_size, num_rotations=54, center=[0,0,0], max_range=0, margin=0.1):
+def generate_base_grid(cube_size, num_rotations=55, center=[0,0,0], max_range=0, margin=0.1):
     grid_size = 16
-    y_range = np.linspace(center[1] - max_range / 2 - margin, center[1] + max_range / 2 + margin, grid_size)
-    z_range = np.linspace(center[2] - max_range / 2 - margin, center[2] + max_range / 2 + margin, grid_size)
+    y_range = np.linspace(0 - max_range / 2 - margin, 0 + max_range / 2 + margin, grid_size)
+    z_range = np.linspace(0 - max_range / 2 - margin, 0 + max_range / 2 + margin, grid_size)
     z, y = np.meshgrid(z_range, y_range)
     x = np.zeros_like(z)
+
 
     square_points = np.vstack([x.ravel(), y.ravel(), z.ravel()]).T
 
@@ -127,16 +91,19 @@ def perform_scan(mesh, scaled_grid, location, label):
             outside_points.append(adjusted_grid[index])
         index+=1
 
+
     # Combine all points in one array
     all_points = adjusted_grid
+
     new_all_points = []
     for point in all_points:
         new_all_points.append([point[0]-x_center,point[1]-y_center,point[2]-z_center])
-
     new_inside_points = []
     for point in inside_points:
         new_inside_points.append([point[0]-x_center,point[1]-y_center,point[2]-z_center])
+
     save_scan_output_to_file(new_all_points, new_inside_points, label=label)
+
     return inside_points, outside_points
 
 # Function to write scan output to a text file
@@ -148,50 +115,105 @@ def save_scan_output_to_file(all_points, inside_points, output_folder="output_fo
     for point in all_points:
         x, y, z = point
         r = np.sqrt(x ** 2 + y ** 2)  # Radial distance
-        theta = round((np.degrees(np.arctan2(y, x))) % 360, 3)  # Angle in degrees
-        all_coords.append(((float(r)), theta, z))
+        theta = round((np.degrees(np.arctan2(y, x))), 3)  # Angle in degrees
+        all_coords.append(((float(r)), theta, z,x,y,z))
 
+    temp_list = []
+    for x in all_coords:
+        temp_list.append(x[3:])
 
     # Unique sorted lists for distances, angles, and heights
     distance_list = sorted(set(x[0] for x in all_coords))
     distance_list = remove_near_duplicates(distance_list)
     angle_list = sorted(set(x[1] for x in all_coords))
-    height_list = sorted(set(x[2] for x in all_coords))
+    height_list = list(sorted(set(x[2] for x in all_coords)))
 
-    print(len(distance_list),len(angle_list),len(height_list))
+    #print(len(distance_list),len(angle_list),len(height_list))
     #print(distance_list)
     #print(angle_list)
     #print(height_list)
-
 
     inside_coords = []
     for point in inside_points:
         x, y, z = point
         r = np.sqrt(x ** 2 + y ** 2)  # Radial distance
         theta = round((np.degrees(np.arctan2(y, x))) % 360, 3)  # Angle in degrees
-        inside_coords.append(((float(r)), theta, z))
+        inside_coords.append(((float(r)), theta, z,x,y,z))
     inside_coords = list(sorted(set(inside_coords)))
+    reversed_height_list = height_list[::-1]
 
-    #print(f'len of inside: {len(inside_coords)}')
-    height_coord_list = []
-    templen = 0
-    for h in height_list:
-        for r in distance_list:
-            first_half = 0
-            second_half = 0
-            for c in inside_coords:
-                if (c[2]-h < c[2]*0.000001) and (c[0]-r < c[0]*0.000001):
-                    angle_index = angle_list.index(c[1])
-                    templen += 1
-                    if angle_index > 31:
-                        second_half |= 1 << (angle_index - 32)  # Shifting for second half
+
+    temp_distance_list = []
+    for x in distance_list:
+        temp_distance_list.append(round(float(x), 5))
+    distance_list = temp_distance_list
+
+    temp_angle_list = []
+    for x in angle_list:
+        temp_angle_list.append(round((float(x)+180),3))
+    angle_list = temp_angle_list
+
+    temp_height_list = []
+    for x in height_list:
+        temp_height_list.append(round(float(x), 3))
+    height_list = temp_height_list
+
+
+    #print(distance_list)
+    #print(angle_list)
+    #print(height_list)
+
+
+
+    temp_inside_coords = []
+    for c in inside_coords:
+        temp_inside_coords.append((round(c[0],5),float(c[1]),round(float(c[2]),3),c[3],c[4],c[5]))
+    inside_coords = temp_inside_coords
+
+    #print(f'len of inside_coords = {len(inside_coords)}')
+    #print(f'len of all_coords = {len(all_coords)}')
+    #print(f'len of angle list = {len(angle_list)}')
+
+    everyother_angle_list = []
+    index = 0
+    for i in angle_list:
+        if index % 2 == 0:
+            everyother_angle_list.append(i)
+        index += 1
+
+    temp_index = 0
+    for a in angle_list[:int(len(angle_list)/2)]:
+        temp_list = []
+        for c in inside_coords:
+            if (c[1] == a) or (c[1] == round(a - 180,3)) or (c[1] == round(a + 180, 3)):
+                temp_list.append(c)
+                temp_index +=1
+            temp2_list = []
+            for y in temp_list:
+                temp2_list.append(y[3:])
+        #plot_3d_points(temp2_list)
+
+        with open(filename, 'a') as file:
+            file.write(f"{a}\n")
+
+        for h in reversed_height_list:
+            to_write = 0
+            h = round(h,3)
+            for y in temp_list:
+                if y[2] == h:
+                    if y[1] == a:
+                        distance_index = distance_list.index(y[0])
+                        to_write |= 1 << distance_index+8
                     else:
-                        first_half |= 1 << angle_index  # Shifting for first half
-
+                        distance_index = distance_list.index(y[0])
+                        to_write |= 1 << 7-distance_index
             with open(filename, 'a') as file:
-                # Write the binary strings to the output file
-                file.write(f"{bin(first_half)[2:].zfill(32)}{bin(second_half)[2:].zfill(32)}\n")
-    #print(templen)
+                file.write(f"{bin(to_write)[2:].zfill(16)}\n")
+
+    #if len(inside_points) > 1:
+        #plot_3d_points(inside_points)
+
+
 
 
 def remove_near_duplicates(numbers, tolerance=0.01):
@@ -259,3 +281,66 @@ def get_quadrants(center,max_range):
     }
 
     return quadrants
+
+
+def plot_3d_points(points):
+    # Separate the x, y, and z coordinates from the list of points
+    x_coords = [point[0] for point in points]
+    y_coords = [point[1] for point in points]
+    z_coords = [point[2] for point in points]
+
+    # Determine the range for each axis using the min and max of the points
+    x_min, x_max = min(x_coords), max(x_coords)
+    y_min, y_max = min(y_coords), max(y_coords)
+    z_min, z_max = min(z_coords), max(z_coords)
+
+    # Calculate the middle and range for each axis
+    x_range = x_max - x_min
+    y_range = y_max - y_min
+    z_range = z_max - z_min
+
+    # Find the overall range to ensure equal scaling
+    max_range = max(x_range, y_range, z_range)
+    mid_x = (x_max + x_min) / 2
+    mid_y = (y_max + y_min) / 2
+    mid_z = (z_max + z_min) / 2
+
+    # Create a 3D plot
+    fig = plt.figure()
+    ax = fig.add_subplot(111, projection='3d')
+
+    # Plot the points
+    ax.scatter(x_coords, y_coords, z_coords, c='blue', marker='o', alpha=0.3)
+
+    # Set axis labels
+    ax.set_xlabel('X Coordinate')
+    ax.set_ylabel('Y Coordinate')
+    ax.set_zlabel('Z Coordinate')
+    ax.set_title('3D Point Plot')
+
+    # Set the limits for each axis using the same scaling range
+    ax.set_xlim([mid_x - max_range / 2, mid_x + max_range / 2])
+    ax.set_ylim([mid_y - max_range / 2, mid_y + max_range / 2])
+    ax.set_zlim([mid_z - max_range / 2, mid_z + max_range / 2])
+
+    # Add a grid and display the plot
+    ax.grid(True)
+    plt.show()
+
+
+def clear_folder(folder_path):
+    # Check if the folder exists
+    if os.path.exists(folder_path):
+        #Iterate through all files and directories in the folder
+        for filename in os.listdir(folder_path):
+            file_path = os.path.join(folder_path, filename)
+
+            try:
+                # Remove a file or a directory
+                if os.path.isfile(file_path) or os.path.islink(file_path):
+                    os.unlink(file_path)  # Remove file or symbolic link
+                elif os.path.isdir(file_path):
+                    shutil.rmtree(file_path)  # Remove directory and all its contents
+            except Exception as e:
+                print(f'Failed to delete {file_path}. Reason: {e}'
+
